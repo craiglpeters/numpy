@@ -82,3 +82,19 @@ mailing list. You are very welcome to join.
 If you are new to contributing to open source, [this
 guide](https://opensource.guide/how-to-contribute/) helps explain why, what,
 and how to successfully get involved.
+
+
+Supporting NumPy
+----------------
+If you have found NumPy useful in your work, research, or company, please consider [a recurring donation](https://numfocus.salsalabs.org/donate-to-numpy/index.html) to the project commensurate with your resources. Any amount helps! All donations will be used strictly to fund the development of NumPy’s open source software, documentation, and community.
+
+Donations to NumPy are managed by [NumFOCUS](https://numfocus.org), a 501(c)(3) nonprofit charity in the United States. NumFOCUS provides NumPy with fiscal, legal, and administrative support to help ensure the health and sustainability of the project. For donors in the United States, your gift is tax-deductible to the extent provided by law. As with any donation, you should consult with your tax advisor about your particular tax situation.
+
+Development of NumPy is also supported by the following organizations.
+<table>
+<tr>
+<td><a href="https://www.moore.org/"><img src="https://numpy.org/images/logos/moore.svg" alt="Gordon and Betty Moore Foundation logo" width="200px"></a></td>
+<td><a href="https://https://www.sloan.org/"><img src="https://numpy.org/images/logos/sloan.svg" alt="logo of Alfred P Sloan Foundation" width="200px"></a></td>
+<td><a href="https://www.chanzuckerberg.com"><img src="https://numpy.org/images/logos/CZI.svg" alt="logo of the Chan Zuckerberg Initiative" width="200px"></a></td>
+<td><a href="https://www.tidelift.com"><img src="https://numpy.org/images/logos/tidelift.png" width="200" alt="logo of Tidelift"></a></td></tr>
+</table>
