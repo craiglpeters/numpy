@@ -9,7 +9,6 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-    Union,
     IO,
     overload,
     Protocol,
@@ -27,7 +26,13 @@ from numpy import (
 )
 
 from numpy.ma.mrecords import MaskedRecords
-from numpy.typing import ArrayLike, DTypeLike, NDArray, _SupportsDType
+from numpy._typing import (
+    ArrayLike,
+    DTypeLike,
+    NDArray,
+    _DTypeLike,
+    _SupportsArrayFunc,
+)
 
 from numpy.core.multiarray import (
     packbits as packbits,
@@ -40,12 +45,6 @@ _T_co = TypeVar("_T_co", covariant=True)
 _SCT = TypeVar("_SCT", bound=generic)
 _CharType_co = TypeVar("_CharType_co", str, bytes, covariant=True)
 _CharType_contra = TypeVar("_CharType_contra", str, bytes, contravariant=True)
-
-_DTypeLike = Union[
-    type[_SCT],
-    dtype[_SCT],
-    _SupportsDType[dtype[_SCT]],
-]
 
 class _SupportsGetItem(Protocol[_T_contra, _T_co]):
     def __getitem__(self, key: _T_contra, /) -> _T_co: ...
@@ -144,7 +143,8 @@ def loadtxt(
     encoding: None | str = ...,
     max_rows: None | int = ...,
     *,
-    like: None | ArrayLike = ...
+    quotechar: None | str = ...,
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[float64]: ...
 @overload
 def loadtxt(
@@ -160,7 +160,8 @@ def loadtxt(
     encoding: None | str = ...,
     max_rows: None | int = ...,
     *,
-    like: None | ArrayLike = ...
+    quotechar: None | str = ...,
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[_SCT]: ...
 @overload
 def loadtxt(
@@ -176,7 +177,8 @@ def loadtxt(
     encoding: None | str = ...,
     max_rows: None | int = ...,
     *,
-    like: None | ArrayLike = ...
+    quotechar: None | str = ...,
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[Any]: ...
 
 def savetxt(
@@ -233,7 +235,7 @@ def genfromtxt(
     encoding: str = ...,
     *,
     ndmin: L[0, 1, 2] = ...,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[float64]: ...
 @overload
 def genfromtxt(
@@ -262,7 +264,7 @@ def genfromtxt(
     encoding: str = ...,
     *,
     ndmin: L[0, 1, 2] = ...,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[_SCT]: ...
 @overload
 def genfromtxt(
@@ -291,7 +293,7 @@ def genfromtxt(
     encoding: str = ...,
     *,
     ndmin: L[0, 1, 2] = ...,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 
 @overload

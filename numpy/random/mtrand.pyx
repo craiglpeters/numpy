@@ -4341,7 +4341,7 @@ cdef class RandomState:
             The drawn samples, of shape ``(size, k)``.
 
         Raises
-        -------
+        ------
         ValueError
             If any value in ``alpha`` is less than or equal to zero
 
@@ -4540,7 +4540,7 @@ cdef class RandomState:
                         "Shuffling a one dimensional array subclass containing "
                         "objects gives incorrect results for most array "
                         "subclasses.  "
-                        "Please us the new random number API instead: "
+                        "Please use the new random number API instead: "
                         "https://numpy.org/doc/stable/reference/random/index.html\n"
                         "The new API fixes this issue. This version will not "
                         "be fixed due to stability guarantees of the API.",

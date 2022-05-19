@@ -379,6 +379,18 @@ PyArray_GetField(PyArrayObject *self, PyArray_Descr *typed, int offset)
     static PyObject *checkfunc = NULL;
     int self_elsize, typed_elsize;
 
+    if (self == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+            "self is NULL in PyArray_GetField");
+        return NULL;
+    }
+
+    if (typed == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+            "typed is NULL in PyArray_GetField");
+        return NULL;
+    }
+
     /* check that we are not reinterpreting memory containing Objects. */
     if (_may_have_objects(PyArray_DESCR(self)) || _may_have_objects(typed)) {
         npy_cache_import("numpy.core._internal", "_getfield_is_safe",
@@ -456,6 +468,18 @@ PyArray_SetField(PyArrayObject *self, PyArray_Descr *dtype,
 {
     PyObject *ret = NULL;
     int retval = 0;
+
+    if (self == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+            "self is NULL in PyArray_SetField");
+        return -1;
+    }
+
+    if (dtype == NULL) {
+        PyErr_SetString(PyExc_ValueError,
+            "dtype is NULL in PyArray_SetField");
+        return -1;
+    }
 
     if (PyArray_FailUnlessWriteable(self, "assignment destination") < 0) {
         Py_DECREF(dtype);
@@ -859,7 +883,7 @@ array_astype(PyArrayObject *self,
      * and it's not a subtype if subok is False, then we
      * can skip the copy.
      */
-    if (forcecopy != NPY_COPY_ALWAYS && 
+    if (forcecopy != NPY_COPY_ALWAYS &&
                     (order == NPY_KEEPORDER ||
                     (order == NPY_ANYORDER &&
                         (PyArray_IS_C_CONTIGUOUS(self) ||
@@ -881,7 +905,7 @@ array_astype(PyArrayObject *self,
         Py_DECREF(dtype);
         return NULL;
     }
-    
+
     if (!PyArray_CanCastArrayTo(self, dtype, casting)) {
         PyErr_Clear();
         npy_set_invalid_cast_error(
@@ -923,6 +947,13 @@ array_astype(PyArrayObject *self,
 }
 
 /* default sub-type implementation */
+
+
+static PyObject *
+array_finalizearray(PyArrayObject *self, PyObject *obj)
+{
+    Py_RETURN_NONE;
+}
 
 
 static PyObject *
@@ -1330,6 +1361,10 @@ array_sort(PyArrayObject *self,
             return NULL;
         }
         newd = PyArray_DescrNew(saved);
+        if (newd == NULL) {
+            Py_DECREF(new_name);
+            return NULL;
+        }
         Py_DECREF(newd->names);
         newd->names = new_name;
         ((PyArrayObject_fields *)self)->descr = newd;
@@ -1392,6 +1427,10 @@ array_partition(PyArrayObject *self,
             return NULL;
         }
         newd = PyArray_DescrNew(saved);
+        if (newd == NULL) {
+            Py_DECREF(new_name);
+            return NULL;
+        }
         Py_DECREF(newd->names);
         newd->names = new_name;
         ((PyArrayObject_fields *)self)->descr = newd;
@@ -1455,6 +1494,10 @@ array_argsort(PyArrayObject *self,
             return NULL;
         }
         newd = PyArray_DescrNew(saved);
+        if (newd == NULL) {
+            Py_DECREF(new_name);
+            return NULL;
+        }
         Py_DECREF(newd->names);
         newd->names = new_name;
         ((PyArrayObject_fields *)self)->descr = newd;
@@ -1512,6 +1555,10 @@ array_argpartition(PyArrayObject *self,
             return NULL;
         }
         newd = PyArray_DescrNew(saved);
+        if (newd == NULL) {
+            Py_DECREF(new_name);
+            return NULL;
+        }
         Py_DECREF(newd->names);
         newd->names = new_name;
         ((PyArrayObject_fields *)self)->descr = newd;
@@ -1976,7 +2023,10 @@ array_setstate(PyArrayObject *self, PyObject *args)
      * since fa could be a 0-d or scalar, and then
      * PyDataMem_UserFREE will be confused
      */
-    size_t n_tofree = PyArray_NBYTES_ALLOCATED(self);
+    size_t n_tofree = PyArray_NBYTES(self);
+    if (n_tofree == 0) {
+        n_tofree = 1;
+    }
     Py_XDECREF(PyArray_DESCR(self));
     fa->descr = typecode;
     Py_INCREF(typecode);
@@ -2113,7 +2163,10 @@ array_setstate(PyArrayObject *self, PyObject *args)
         /* Bytes should always be considered immutable, but we just grab the
          * pointer if they are large, to save memory. */
         if (!IsAligned(self) || swap || (len <= 1000)) {
-            npy_intp num = PyArray_NBYTES_ALLOCATED(self);
+            npy_intp num = PyArray_NBYTES(self);
+            if (num == 0) {
+                num = 1;
+            }
             /* Store the handler in case the default is modified */
             Py_XDECREF(fa->mem_handler);
             fa->mem_handler = PyDataMem_GetHandler();
@@ -2143,6 +2196,11 @@ array_setstate(PyArrayObject *self, PyObject *args)
                 }
                 else {
                     fa->descr = PyArray_DescrNew(typecode);
+                    if (fa->descr == NULL) {
+                        Py_CLEAR(fa->mem_handler);
+                        Py_DECREF(rawdata);
+                        return NULL;
+                    }
                     if (PyArray_DESCR(self)->byteorder == NPY_BIG) {
                         PyArray_DESCR(self)->byteorder = NPY_LITTLE;
                     }
@@ -2153,7 +2211,7 @@ array_setstate(PyArrayObject *self, PyObject *args)
                 Py_DECREF(typecode);
             }
             else {
-                memcpy(PyArray_DATA(self), datastr, num);
+                memcpy(PyArray_DATA(self), datastr, PyArray_NBYTES(self));
             }
             PyArray_ENABLEFLAGS(self, NPY_ARRAY_OWNDATA);
             fa->base = NULL;
@@ -2171,7 +2229,10 @@ array_setstate(PyArrayObject *self, PyObject *args)
         }
     }
     else {
-        npy_intp num = PyArray_NBYTES_ALLOCATED(self);
+        npy_intp num = PyArray_NBYTES(self);
+        if (num == 0) {
+            num = 1;
+        }
 
         /* Store the functions in case the default handler is modified */
         Py_XDECREF(fa->mem_handler);
@@ -2777,6 +2838,9 @@ NPY_NO_EXPORT PyMethodDef array_methods[] = {
     {"__array_prepare__",
         (PyCFunction)array_preparearray,
         METH_VARARGS, NULL},
+    {"__array_finalize__",
+        (PyCFunction)array_finalizearray,
+        METH_O, NULL},
     {"__array_wrap__",
         (PyCFunction)array_wraparray,
         METH_VARARGS, NULL},

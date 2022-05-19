@@ -1206,6 +1206,7 @@ prepare_ufunc_output(PyUFuncObject *ufunc,
  * cannot broadcast any other array (as it requires a single stride).
  * The function accepts all 1-D arrays, and N-D arrays that are either all
  * C- or all F-contiguous.
+ * NOTE: Broadcast outputs are implicitly rejected in the overlap detection.
  *
  * Returns -2 if a trivial loop is not possible, 0 on success and -1 on error.
  */
@@ -1321,6 +1322,10 @@ try_trivial_single_output_loop(PyArrayMethod_Context *context,
      */
     char *data[NPY_MAXARGS];
     npy_intp count = PyArray_MultiplyList(operation_shape, operation_ndim);
+    if (count == 0) {
+        /* Nothing to do */
+        return 0;
+    }
     NPY_BEGIN_THREADS_DEF;
 
     PyArrayMethod_StridedLoop *strided_loop;
@@ -2704,7 +2709,7 @@ PyUFunc_GenericFunction(PyUFuncObject *NPY_UNUSED(ufunc),
  * @param out_descrs New references to the resolved descriptors (on success).
  * @param method The ufunc method, "reduce", "reduceat", or "accumulate".
 
- * @returns ufuncimpl The `ArrayMethod` implemention to use. Or NULL if an
+ * @returns ufuncimpl The `ArrayMethod` implementation to use. Or NULL if an
  *          error occurred.
  */
 static PyArrayMethodObject *
@@ -2720,6 +2725,21 @@ reducelike_promote_and_resolve(PyUFuncObject *ufunc,
      * is NULL) so we pass `arr` instead in that case.
      */
     PyArrayObject *ops[3] = {out ? out : arr, arr, out};
+
+    /*
+     * TODO: This is a dangerous hack, that works by relying on the GIL, it is
+     *       terrible, terrifying, and trusts that nobody does crazy stuff
+     *       in their type-resolvers.
+     *       By mutating the `out` dimension, we ensure that reduce-likes
+     *       live in a future without value-based promotion even when legacy
+     *       promotion has to be used.
+     */
+    npy_bool evil_ndim_mutating_hack = NPY_FALSE;
+    if (out != NULL && PyArray_NDIM(out) == 0 && PyArray_NDIM(arr) != 0) {
+        evil_ndim_mutating_hack = NPY_TRUE;
+        ((PyArrayObject_fields *)out)->nd = 1;
+    }
+
     /*
      * TODO: If `out` is not provided, arguably `initial` could define
      *       the first DType (and maybe also the out one), that way
@@ -2740,6 +2760,9 @@ reducelike_promote_and_resolve(PyUFuncObject *ufunc,
 
     PyArrayMethodObject *ufuncimpl = promote_and_get_ufuncimpl(ufunc,
             ops, signature, operation_DTypes, NPY_FALSE, NPY_TRUE, NPY_TRUE);
+    if (evil_ndim_mutating_hack) {
+        ((PyArrayObject_fields *)out)->nd = 0;
+    }
     /* DTypes may currently get filled in fallbacks and XDECREF for error: */
     Py_XDECREF(operation_DTypes[0]);
     Py_XDECREF(operation_DTypes[1]);
@@ -2764,9 +2787,13 @@ reducelike_promote_and_resolve(PyUFuncObject *ufunc,
      * The first operand and output should be the same array, so they should
      * be identical.  The second argument can be different for reductions,
      * but is checked to be identical for accumulate and reduceat.
+     * Ideally, the type-resolver ensures that all are identical, but we do
+     * not enforce this here strictly.  Otherwise correct handling of
+     * byte-order changes (or metadata) requires a lot of care; see gh-20699.
      */
-    if (out_descrs[0] != out_descrs[2] || (
-            enforce_uniform_args && out_descrs[0] != out_descrs[1])) {
+    if (!PyArray_EquivTypes(out_descrs[0], out_descrs[2]) || (
+            enforce_uniform_args && !PyArray_EquivTypes(
+                    out_descrs[0], out_descrs[1]))) {
         PyErr_Format(PyExc_TypeError,
                 "the resolved dtypes are not compatible with %s.%s. "
                 "Resolved (%R, %R, %R)",
@@ -2797,7 +2824,7 @@ reduce_loop(PyArrayMethod_Context *context,
         npy_intp const *countptr, NpyIter_IterNextFunc *iternext,
         int needs_api, npy_intp skip_first_count)
 {
-    int retval;
+    int retval = 0;
     char *dataptrs_copy[4];
     npy_intp strides_copy[4];
     npy_bool masked;
@@ -2827,19 +2854,20 @@ reduce_loop(PyArrayMethod_Context *context,
                     count = 0;
                 }
             }
+            if (count > 0) {
+                /* Turn the two items into three for the inner loop */
+                dataptrs_copy[0] = dataptrs[0];
+                dataptrs_copy[1] = dataptrs[1];
+                dataptrs_copy[2] = dataptrs[0];
+                strides_copy[0] = strides[0];
+                strides_copy[1] = strides[1];
+                strides_copy[2] = strides[0];
 
-            /* Turn the two items into three for the inner loop */
-            dataptrs_copy[0] = dataptrs[0];
-            dataptrs_copy[1] = dataptrs[1];
-            dataptrs_copy[2] = dataptrs[0];
-            strides_copy[0] = strides[0];
-            strides_copy[1] = strides[1];
-            strides_copy[2] = strides[0];
-
-            retval = strided_loop(context,
-                    dataptrs_copy, &count, strides_copy, auxdata);
-            if (retval < 0) {
-                goto finish_loop;
+                retval = strided_loop(context,
+                        dataptrs_copy, &count, strides_copy, auxdata);
+                if (retval < 0) {
+                    goto finish_loop;
+                }
             }
 
             /* Advance loop, and abort on error (or finish) */
@@ -3028,8 +3056,12 @@ PyUFunc_Accumulate(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *out,
         return NULL;
     }
 
-    /* The below code assumes that all descriptors are identical: */
-    assert(descrs[0] == descrs[1] && descrs[0] == descrs[2]);
+    /*
+     * The below code assumes that all descriptors are interchangeable, we
+     * allow them to not be strictly identical (but they typically should be)
+     */
+    assert(PyArray_EquivTypes(descrs[0], descrs[1])
+           && PyArray_EquivTypes(descrs[0], descrs[2]));
 
     if (PyDataType_REFCHK(descrs[2]) && descrs[2]->type_num != NPY_OBJECT) {
         /* This can be removed, but the initial element copy needs fixing */
@@ -3441,8 +3473,12 @@ PyUFunc_Reduceat(PyUFuncObject *ufunc, PyArrayObject *arr, PyArrayObject *ind,
         return NULL;
     }
 
-    /* The below code assumes that all descriptors are identical: */
-    assert(descrs[0] == descrs[1] && descrs[0] == descrs[2]);
+    /*
+     * The below code assumes that all descriptors are interchangeable, we
+     * allow them to not be strictly identical (but they typically should be)
+     */
+    assert(PyArray_EquivTypes(descrs[0], descrs[1])
+           && PyArray_EquivTypes(descrs[0], descrs[2]));
 
     if (PyDataType_REFCHK(descrs[2]) && descrs[2]->type_num != NPY_OBJECT) {
         /* This can be removed, but the initial element copy needs fixing */
@@ -5857,6 +5893,13 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
     NpyAuxData *auxdata = NULL;
 
     NPY_BEGIN_THREADS_DEF;
+
+    if (ufunc->core_enabled) {
+        PyErr_Format(PyExc_TypeError,
+            "%s.at does not support ufunc with non-trivial signature: %s has signature %s.",
+            ufunc->name, ufunc->name, ufunc->core_signature);
+        return NULL;
+    }
 
     if (ufunc->nin > 2) {
         PyErr_SetString(PyExc_ValueError,

@@ -7,8 +7,6 @@ from typing import (
 )
 
 from numpy import (
-    ndarray,
-    dtype,
     generic,
     number,
     bool_,
@@ -24,13 +22,13 @@ from numpy import (
     _OrderCF,
 )
 
-from numpy.typing import (
+from numpy._typing import (
     DTypeLike,
-    _SupportsDType,
+    _DTypeLike,
     ArrayLike,
+    _ArrayLike,
     NDArray,
-    _FiniteNestedSequence,
-    _SupportsArray,
+    _SupportsArrayFunc,
     _ArrayLikeInt_co,
     _ArrayLikeFloat_co,
     _ArrayLikeComplex_co,
@@ -45,13 +43,6 @@ _MaskFunc = Callable[
     [NDArray[int_], _T],
     NDArray[Union[number[Any], bool_, timedelta64, datetime64, object_]],
 ]
-
-_DTypeLike = Union[
-    type[_SCT],
-    dtype[_SCT],
-    _SupportsDType[dtype[_SCT]],
-]
-_ArrayLike = _FiniteNestedSequence[_SupportsArray[dtype[_SCT]]]
 
 __all__: list[str]
 
@@ -73,7 +64,7 @@ def eye(
     dtype: None = ...,
     order: _OrderCF = ...,
     *,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[float64]: ...
 @overload
 def eye(
@@ -83,7 +74,7 @@ def eye(
     dtype: _DTypeLike[_SCT] = ...,
     order: _OrderCF = ...,
     *,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[_SCT]: ...
 @overload
 def eye(
@@ -93,7 +84,7 @@ def eye(
     dtype: DTypeLike = ...,
     order: _OrderCF = ...,
     *,
-    like: None | ArrayLike = ...,
+    like: None | _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 
 @overload
@@ -113,7 +104,7 @@ def tri(
     k: int = ...,
     dtype: None = ...,
     *,
-    like: None | ArrayLike = ...
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[float64]: ...
 @overload
 def tri(
@@ -122,7 +113,7 @@ def tri(
     k: int = ...,
     dtype: _DTypeLike[_SCT] = ...,
     *,
-    like: None | ArrayLike = ...
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[_SCT]: ...
 @overload
 def tri(
@@ -131,7 +122,7 @@ def tri(
     k: int = ...,
     dtype: DTypeLike = ...,
     *,
-    like: None | ArrayLike = ...
+    like: None | _SupportsArrayFunc = ...
 ) -> NDArray[Any]: ...
 
 @overload

@@ -1,7 +1,7 @@
 .. _structured_arrays:
 
 *****************
-Structured arrays 
+Structured arrays
 *****************
 
 Introduction
@@ -472,7 +472,7 @@ missing.
     Furthermore, numpy now provides a new function
     :func:`numpy.lib.recfunctions.structured_to_unstructured` which is a safer
     and more efficient alternative for users who wish to convert structured
-    arrays to unstructured arrays, as the view above is often indeded to do.
+    arrays to unstructured arrays, as the view above is often intended to do.
     This function allows safe conversion to an unstructured type taking into
     account padding, often avoids a copy, and also casts the datatypes
     as needed, unlike the view. Code such as:
@@ -485,7 +485,9 @@ missing.
 
      >>> from numpy.lib.recfunctions import structured_to_unstructured
      >>> structured_to_unstructured(b[['x', 'z']])
-     array([0, 0, 0])
+     array([[0., 0.],
+            [0., 0.],
+            [0., 0.]], dtype=float32)
 
 
 Assignment to an array with a multi-field index modifies the original array::
@@ -590,7 +592,7 @@ The simplest way to create a record array is with
  >>> recordarr = np.rec.array([(1, 2., 'Hello'), (2, 3., "World")],
  ...                    dtype=[('foo', 'i4'),('bar', 'f4'), ('baz', 'S10')])
  >>> recordarr.bar
- array([ 2.,  3.], dtype=float32)
+ array([2., 3.], dtype=float32)
  >>> recordarr[1:2]
  rec.array([(2, 3., b'World')],
        dtype=[('foo', '<i4'), ('bar', '<f4'), ('baz', 'S10')])

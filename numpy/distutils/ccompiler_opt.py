@@ -16,6 +16,14 @@ import re
 import subprocess
 import textwrap
 
+# These flags are used to compile any C++ source within Numpy.
+# They are chosen to have very few runtime dependencies.
+NPY_CXX_FLAGS = [
+    '-std=c++11',  # Minimal standard version
+    '-D__STDC_VERSION__=0',  # for compatibility with C headers
+    '-fno-exceptions',  # no exception support
+    '-fno-rtti']  # no runtime type information
+
 
 class _Config:
     """An abstract class holds all configurable attributes of `CCompilerOpt`,
@@ -169,7 +177,7 @@ class _Config:
 
             If the compiler able to successfully compile the C file then `CCompilerOpt`
             will add a C ``#define`` for it into the main dispatch header, e.g.
-            ```#define {conf_c_prefix}_XXXX`` where ``XXXX`` is the case name in upper case.
+            ``#define {conf_c_prefix}_XXXX`` where ``XXXX`` is the case name in upper case.
 
         **NOTES**:
             * space can be used as separator with options that supports "str or list"
@@ -294,6 +302,9 @@ class _Config:
         VSX2 = dict(interest=2, implies="VSX", implies_detect=False),
         ## Power9/ISA 3.00
         VSX3 = dict(interest=3, implies="VSX2", implies_detect=False),
+        ## Power10/ISA 3.1
+        VSX4 = dict(interest=4, implies="VSX3", implies_detect=False,
+                    extra_checks="VSX4_MMA"),
         # IBM/Z
         ## VX(z13) support
         VX = dict(interest=1, headers="vecintrin.h"),
@@ -343,7 +354,7 @@ class _Config:
             FMA4   = dict(flags="-mfma4"),
             FMA3   = dict(flags="-mfma"),
             AVX2   = dict(flags="-mavx2"),
-            AVX512F = dict(flags="-mavx512f"),
+            AVX512F = dict(flags="-mavx512f -mno-mmx"),
             AVX512CD = dict(flags="-mavx512cd"),
             AVX512_KNL = dict(flags="-mavx512er -mavx512pf"),
             AVX512_KNM = dict(
@@ -471,12 +482,16 @@ class _Config:
                 ),
                 VSX3 = dict(
                     flags="-mcpu=power9 -mtune=power9", implies_detect=False
+                ),
+                VSX4 = dict(
+                    flags="-mcpu=power10 -mtune=power10", implies_detect=False
                 )
             )
             if self.cc_is_clang:
                 partial["VSX"]["flags"]  = "-maltivec -mvsx"
                 partial["VSX2"]["flags"] = "-mpower8-vector"
                 partial["VSX3"]["flags"] = "-mpower9-vector"
+                partial["VSX4"]["flags"] = "-mpower10-vector"
 
             return partial
 
@@ -762,18 +777,18 @@ class _Cache:
 
     Parameters
     ----------
-    cache_path: str or None
+    cache_path : str or None
         The path of cache file, if None then cache in file will disabled.
 
-    *factors:
+    *factors :
         The caching factors that need to utilize next to `conf_cache_factors`.
 
     Attributes
     ----------
-    cache_private: set
+    cache_private : set
         Hold the attributes that need be skipped from "in-memory cache".
 
-    cache_infile: bool
+    cache_infile : bool
         Utilized during initializing this class, to determine if the cache was able
         to loaded from the specified cache path in 'cache_path'.
     """
@@ -1224,12 +1239,12 @@ class _Feature:
 
         Parameters
         ----------
-        names: sequence or None, optional
+        names : sequence or None, optional
             Specify certain CPU features to test it against the **C** compiler.
             if None(default), it will test all current supported features.
             **Note**: feature names must be in upper-case.
 
-        force_flags: list or None, optional
+        force_flags : list or None, optional
             If None(default), default compiler flags for every CPU feature will
             be used during the test.
 
@@ -1298,10 +1313,10 @@ class _Feature:
 
         Parameters
         ----------
-        names: str or sequence of str
+        names : str or sequence of str
             CPU feature name(s) in uppercase.
 
-        keep_origins: bool
+        keep_origins : bool
             if False(default) then the returned set will not contain any
             features from 'names'. This case happens only when two features
             imply each other.
@@ -1491,10 +1506,10 @@ class _Feature:
 
         Parameters
         ----------
-        name: str
+        name : str
             Supported CPU feature name.
 
-        force_flags: list or None, optional
+        force_flags : list or None, optional
             If None(default), the returned flags from `feature_flags()`
             will be used.
 
@@ -1530,10 +1545,10 @@ class _Feature:
 
         Parameters
         ----------
-        name: str
+        name : str
             CPU feature name in uppercase.
 
-        force_flags: list or None, optional
+        force_flags : list or None, optional
             If None(default), default compiler flags for every CPU feature will
             be used during test.
 
@@ -1575,7 +1590,7 @@ class _Feature:
 
         Parameters
         ----------
-        names: str
+        names : str
             CPU feature name in uppercase.
         """
         assert isinstance(name, str)
@@ -1661,10 +1676,10 @@ class _Parse:
 
     Parameters
     ----------
-    cpu_baseline: str or None
+    cpu_baseline : str or None
         minimal set of required CPU features or special options.
 
-    cpu_dispatch: str or None
+    cpu_dispatch : str or None
         dispatched set of additional CPU features or special options.
 
     Special options can be:
@@ -1797,7 +1812,7 @@ class _Parse:
 
         Parameters
         ----------
-        source: str
+        source : str
             the path of **C** source file.
 
         Returns
@@ -2236,7 +2251,7 @@ class CCompilerOpt(_Config, _Distutils, _Cache, _CCompiler, _Feature, _Parse):
             Path of parent directory for the generated headers and wrapped sources.
             If None(default) the files will generated in-place.
 
-        ccompiler: CCompiler
+        ccompiler : CCompiler
             Distutils `CCompiler` instance to be used for compilation.
             If None (default), the provided instance during the initialization
             will be used instead.
@@ -2543,6 +2558,8 @@ class CCompilerOpt(_Config, _Distutils, _Cache, _CCompiler, _Feature, _Parse):
                     return True
         except OSError:
             pass
+
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
 
         self.dist_log("generate dispatched config -> ", config_path)
         dispatch_calls = []

@@ -14,6 +14,7 @@ MinusInfinity = 'PyFloat_FromDouble(-NPY_INFINITY)'
 ReorderableNone = "(Py_INCREF(Py_None), Py_None)"
 
 class docstrings:
+    @staticmethod
     def get(place):
         """
         Returns the C #definition name of docstring according
@@ -53,10 +54,10 @@ class TypeDescription:
     cfunc_alias : str or none, optional
         Appended to inner loop C function name, e.g., FLOAT_{cfunc_alias}. See make_arrays.
         NOTE: it doesn't support 'astype'
-    simd: list
+    simd : list
         Available SIMD ufunc loops, dispatched at runtime in specified order
         Currently only supported for simples types (see make_arrays)
-    dispatch: str or None, optional
+    dispatch : str or None, optional
         Dispatch-able source name without its extension '.dispatch.c' that
         contains the definition of ufunc, dispatched at runtime depending on the
         specified targets of the dispatch-able source.
@@ -363,7 +364,7 @@ defdict = {
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.fmod'),
           None,
-          TD(ints),
+          TD(ints, dispatch=[('loops_modulo', ints)]),
           TD(flts, f='fmod', astype={'e': 'f'}),
           TD(P, f='fmod'),
           ),
@@ -521,14 +522,14 @@ defdict = {
     Ufunc(2, 1, ReorderableNone,
           docstrings.get('numpy.core.umath.maximum'),
           'PyUFunc_SimpleUniformOperationTypeResolver',
-          TD(noobj, simd=[('avx512f', 'fd')]),
+          TD(noobj, dispatch=[('loops_minmax', ints+'fdg')]),
           TD(O, f='npy_ObjectMax')
           ),
 'minimum':
     Ufunc(2, 1, ReorderableNone,
           docstrings.get('numpy.core.umath.minimum'),
           'PyUFunc_SimpleUniformOperationTypeResolver',
-          TD(noobj, simd=[('avx512f', 'fd')]),
+          TD(noobj, dispatch=[('loops_minmax', ints+'fdg')]),
           TD(O, f='npy_ObjectMin')
           ),
 'clip':
@@ -542,6 +543,7 @@ defdict = {
     Ufunc(2, 1, ReorderableNone,
           docstrings.get('numpy.core.umath.fmax'),
           'PyUFunc_SimpleUniformOperationTypeResolver',
+          TD('fdg', dispatch=[('loops_minmax', 'fdg')]),
           TD(noobj),
           TD(O, f='npy_ObjectMax')
           ),
@@ -549,6 +551,7 @@ defdict = {
     Ufunc(2, 1, ReorderableNone,
           docstrings.get('numpy.core.umath.fmin'),
           'PyUFunc_SimpleUniformOperationTypeResolver',
+          TD('fdg', dispatch=[('loops_minmax', 'fdg')]),
           TD(noobj),
           TD(O, f='npy_ObjectMin')
           ),
@@ -742,7 +745,7 @@ defdict = {
           docstrings.get('numpy.core.umath.tanh'),
           None,
           TD('e', f='tanh', astype={'e': 'f'}),
-          TD('fd', dispatch=[('loops_umath_fp', 'fd')]),
+          TD('fd', dispatch=[('loops_hyperbolic', 'fd')]),
           TD(inexact, f='tanh', astype={'e': 'f'}),
           TD(P, f='tanh'),
           ),
@@ -841,7 +844,7 @@ defdict = {
           docstrings.get('numpy.core.umath.trunc'),
           None,
           TD('e', f='trunc', astype={'e': 'f'}),
-          TD(inexactvec, simd=[('fma', 'fd'), ('avx512f', 'fd')]),
+          TD(inexactvec, dispatch=[('loops_unary_fp', 'fd')]),
           TD('fdg', f='trunc'),
           TD(O, f='npy_ObjectTrunc'),
           ),
@@ -857,7 +860,7 @@ defdict = {
           docstrings.get('numpy.core.umath.floor'),
           None,
           TD('e', f='floor', astype={'e': 'f'}),
-          TD(inexactvec, simd=[('fma', 'fd'), ('avx512f', 'fd')]),
+          TD(inexactvec, dispatch=[('loops_unary_fp', 'fd')]),
           TD('fdg', f='floor'),
           TD(O, f='npy_ObjectFloor'),
           ),
@@ -866,7 +869,7 @@ defdict = {
           docstrings.get('numpy.core.umath.rint'),
           None,
           TD('e', f='rint', astype={'e': 'f'}),
-          TD(inexactvec, simd=[('fma', 'fd'), ('avx512f', 'fd')]),
+          TD(inexactvec, dispatch=[('loops_unary_fp', 'fd')]),
           TD('fdg' + cmplx, f='rint'),
           TD(P, f='rint'),
           ),
@@ -881,7 +884,8 @@ defdict = {
     Ufunc(2, 1, None,
           docstrings.get('numpy.core.umath.remainder'),
           'PyUFunc_RemainderTypeResolver',
-          TD(intflt),
+          TD(ints, dispatch=[('loops_modulo', ints)]),
+          TD(flts),
           [TypeDescription('m', FullTypeDescr, 'mm', 'm')],
           TD(O, f='PyNumber_Remainder'),
           ),
@@ -889,7 +893,8 @@ defdict = {
     Ufunc(2, 2, None,
           docstrings.get('numpy.core.umath.divmod'),
           'PyUFunc_DivmodTypeResolver',
-          TD(intflt),
+          TD(ints, dispatch=[('loops_modulo', ints)]),
+          TD(flts),
           [TypeDescription('m', FullTypeDescr, 'mm', 'qm')],
           # TD(O, f='PyNumber_Divmod'),  # gh-9730
           ),

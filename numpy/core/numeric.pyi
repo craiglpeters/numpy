@@ -1,7 +1,6 @@
 from collections.abc import Callable, Sequence
 from typing import (
     Any,
-    Union,
     overload,
     TypeVar,
     Literal,
@@ -13,7 +12,6 @@ from typing_extensions import TypeGuard
 
 from numpy import (
     ComplexWarning as ComplexWarning,
-    dtype,
     generic,
     unsignedinteger,
     signedinteger,
@@ -29,14 +27,14 @@ from numpy import (
     _OrderCF,
 )
 
-from numpy.typing import (
+from numpy._typing import (
     ArrayLike,
     NDArray,
     DTypeLike,
     _ShapeLike,
-    _SupportsDType,
-    _FiniteNestedSequence,
-    _SupportsArray,
+    _DTypeLike,
+    _ArrayLike,
+    _SupportsArrayFunc,
     _ScalarLike_co,
     _ArrayLikeBool_co,
     _ArrayLikeUInt_co,
@@ -51,12 +49,6 @@ _T = TypeVar("_T")
 _SCT = TypeVar("_SCT", bound=generic)
 _ArrayType = TypeVar("_ArrayType", bound=NDArray[Any])
 
-_DTypeLike = Union[
-    dtype[_SCT],
-    type[_SCT],
-    _SupportsDType[dtype[_SCT]],
-]
-_ArrayLike = _FiniteNestedSequence[_SupportsArray[dtype[_SCT]]]
 _CorrelateMode = Literal["valid", "same", "full"]
 
 __all__: list[str]
@@ -108,7 +100,7 @@ def ones(
     dtype: None = ...,
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[float64]: ...
 @overload
 def ones(
@@ -116,7 +108,7 @@ def ones(
     dtype: _DTypeLike[_SCT],
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[_SCT]: ...
 @overload
 def ones(
@@ -124,7 +116,7 @@ def ones(
     dtype: DTypeLike,
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 
 @overload
@@ -175,7 +167,7 @@ def full(
     dtype: None = ...,
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 @overload
 def full(
@@ -184,7 +176,7 @@ def full(
     dtype: _DTypeLike[_SCT],
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[_SCT]: ...
 @overload
 def full(
@@ -193,7 +185,7 @@ def full(
     dtype: DTypeLike,
     order: _OrderCF = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 
 @overload
@@ -563,7 +555,7 @@ def fromfunction(
     shape: Sequence[int],
     *,
     dtype: DTypeLike = ...,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
     **kwargs: Any,
 ) -> _T: ...
 
@@ -584,21 +576,21 @@ def identity(
     n: int,
     dtype: None = ...,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[float64]: ...
 @overload
 def identity(
     n: int,
     dtype: _DTypeLike[_SCT],
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[_SCT]: ...
 @overload
 def identity(
     n: int,
     dtype: DTypeLike,
     *,
-    like: ArrayLike = ...,
+    like: _SupportsArrayFunc = ...,
 ) -> NDArray[Any]: ...
 
 def allclose(

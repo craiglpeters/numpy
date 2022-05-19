@@ -138,22 +138,6 @@ class _VisibleDeprecationTestCase(_DeprecationTestCase):
     warning_cls = np.VisibleDeprecationWarning
 
 
-class TestNonTupleNDIndexDeprecation:
-    def test_basic(self):
-        a = np.zeros((5, 5))
-        with warnings.catch_warnings():
-            warnings.filterwarnings('always')
-            assert_warns(FutureWarning, a.__getitem__, [[0, 1], [0, 1]])
-            assert_warns(FutureWarning, a.__getitem__, [slice(None)])
-
-            warnings.filterwarnings('error')
-            assert_raises(FutureWarning, a.__getitem__, [[0, 1], [0, 1]])
-            assert_raises(FutureWarning, a.__getitem__, [slice(None)])
-
-            # a a[[0, 1]] always was advanced indexing, so no error/warning
-            a[[0, 1]]
-
-
 class TestComparisonDeprecations(_DeprecationTestCase):
     """This tests the deprecation, for non-element-wise comparison logic.
     This used to mean that when an error occurred during element-wise comparison
@@ -255,20 +239,6 @@ class TestDatetime64Timezone(_DeprecationTestCase):
         tz = pytz.timezone('US/Eastern')
         dt = datetime.datetime(2000, 1, 1, 0, 0, tzinfo=tz)
         self.assert_deprecated(np.datetime64, args=(dt,))
-
-
-class TestNonCContiguousViewDeprecation(_DeprecationTestCase):
-    """View of non-C-contiguous arrays deprecated in 1.11.0.
-
-    The deprecation will not be raised for arrays that are both C and F
-    contiguous, as C contiguous is dominant. There are more such arrays
-    with relaxed stride checking than without so the deprecation is not
-    as visible with relaxed stride checking in force.
-    """
-
-    def test_fortran_contiguous(self):
-        self.assert_deprecated(np.ones((2,2)).T.view, args=(complex,))
-        self.assert_deprecated(np.ones((2,2)).T.view, args=(np.int8,))
 
 
 class TestArrayDataAttributeAssignmentDeprecation(_DeprecationTestCase):
@@ -1108,24 +1078,6 @@ class TestComparisonBadObjectDType(_DeprecationTestCase):
                 lambda: np.equal(1, 1, sig=(None, None, object)))
 
 
-class TestSpecialAttributeLookupFailure(_DeprecationTestCase):
-    message = r"An exception was ignored while fetching the attribute"
-
-    class WeirdArrayLike:
-        @property
-        def __array__(self):
-            raise RuntimeError("oops!")
-
-    class WeirdArrayInterface:
-        @property
-        def __array_interface__(self):
-            raise RuntimeError("oops!")
-
-    def test_deprecated(self):
-        self.assert_deprecated(lambda: np.array(self.WeirdArrayLike()))
-        self.assert_deprecated(lambda: np.array(self.WeirdArrayInterface()))
-
-
 class TestCtypesGetter(_DeprecationTestCase):
     # Deprecated 2021-05-18, Numpy 1.21.0
     warning_cls = DeprecationWarning
@@ -1253,3 +1205,14 @@ class TestMemEventHook(_DeprecationTestCase):
         with pytest.warns(DeprecationWarning,
                           match='PyDataMem_SetEventHook is deprecated'):
             ma_tests.test_pydatamem_seteventhook_end()
+
+
+class TestArrayFinalizeNone(_DeprecationTestCase):
+    message = "Setting __array_finalize__ = None"
+
+    def test_use_none_is_deprecated(self):
+        # Deprecated way that ndarray itself showed nothing needs finalizing.
+        class NoFinalize(np.ndarray):
+            __array_finalize__ = None
+
+        self.assert_deprecated(lambda: np.array(1).view(NoFinalize))

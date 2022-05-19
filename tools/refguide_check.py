@@ -104,6 +104,8 @@ DOCTEST_SKIPDICT = {
     'numpy.random.vonmises': None,
     'numpy.random.power': None,
     'numpy.random.zipf': None,
+    # cases where NumPy docstrings import things from other 3'rd party libs:
+    'numpy.core.from_dlpack': None,
     # remote / local file IO with DataSource is problematic in doctest:
     'numpy.lib.DataSource': None,
     'numpy.lib.Repository': None,
@@ -131,13 +133,12 @@ RST_SKIPLIST = [
     'c-info.ufunc-tutorial.rst',
     'c-info.python-as-glue.rst',
     'f2py.getting-started.rst',
+    'f2py-examples.rst',
     'arrays.nditer.cython.rst',
     # See PR 17222, these should be fixed
-    'basics.byteswapping.rst',
     'basics.dispatch.rst',
-    'basics.indexing.rst',
     'basics.subclassing.rst',
-    'basics.types.rst',
+    'basics.interoperability.rst',
     'misc.rst',
 ]
 

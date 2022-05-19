@@ -804,8 +804,8 @@ def argpartition(a, kth, axis=-1, kind='introselect', order=None):
     index_array : ndarray, int
         Array of indices that partition `a` along the specified axis.
         If `a` is one-dimensional, ``a[index_array]`` yields a partitioned `a`.
-        More generally, ``np.take_along_axis(a, index_array, axis=a)`` always
-        yields the partitioned `a`, irrespective of dimensionality.
+        More generally, ``np.take_along_axis(a, index_array, axis)``
+        always yields the partitioned `a`, irrespective of dimensionality.
 
     See Also
     --------
@@ -2309,7 +2309,7 @@ def any(a, axis=None, out=None, keepdims=np._NoValue, *, where=np._NoValue):
     """
     Test whether any array element along a given axis evaluates to True.
 
-    Returns single boolean unless `axis` is not ``None``
+    Returns single boolean if `axis` is ``None``
 
     Parameters
     ----------
@@ -3408,6 +3408,7 @@ def mean(a, axis=None, dtype=None, out=None, keepdims=np._NoValue, *,
     0.55000000074505806 # may vary
 
     Specifying a where argument:
+
     >>> a = np.array([[5, 9, 13], [14, 10, 12], [11, 15, 19]])
     >>> np.mean(a)
     12.0

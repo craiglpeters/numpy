@@ -468,10 +468,6 @@ array_dealloc(PyArrayObject *self)
             free(fa->data);
         }
         else {
-            /*
-             * In theory `PyArray_NBYTES_ALLOCATED`, but differs somewhere?
-             * So instead just use the knowledge that 0 is impossible.
-             */
             size_t nbytes = PyArray_NBYTES(self);
             if (nbytes == 0) {
                 nbytes = 1;
@@ -966,6 +962,9 @@ _strings_richcompare(PyArrayObject *self, PyArrayObject *other, int cmp_op,
     if (PyArray_ISNOTSWAPPED(self) != PyArray_ISNOTSWAPPED(other)) {
         /* Cast `other` to the same byte order as `self` (both unicode here) */
         PyArray_Descr* unicode = PyArray_DescrNew(PyArray_DESCR(self));
+        if (unicode == NULL) {
+            return NULL;
+        }
         unicode->elsize = PyArray_DESCR(other)->elsize;
         PyObject *new = PyArray_FromAny((PyObject *)other,
                 unicode, 0, 0, 0, NULL);

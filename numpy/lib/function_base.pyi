@@ -2,7 +2,6 @@ import sys
 from collections.abc import Sequence, Iterator, Callable, Iterable
 from typing import (
     Literal as L,
-    Union,
     Any,
     TypeVar,
     overload,
@@ -19,7 +18,6 @@ else:
 from numpy import (
     vectorize as vectorize,
     ufunc,
-    dtype,
     generic,
     floating,
     complexfloating,
@@ -32,15 +30,14 @@ from numpy import (
     _OrderKACF,
 )
 
-from numpy.typing import (
+from numpy._typing import (
     NDArray,
     ArrayLike,
     DTypeLike,
     _ShapeLike,
     _ScalarLike_co,
-    _SupportsDType,
-    _FiniteNestedSequence,
-    _SupportsArray,
+    _DTypeLike,
+    _ArrayLike,
     _ArrayLikeInt_co,
     _ArrayLikeFloat_co,
     _ArrayLikeComplex_co,
@@ -68,12 +65,6 @@ _SCT = TypeVar("_SCT", bound=generic)
 _ArrayType = TypeVar("_ArrayType", bound=NDArray[Any])
 
 _2Tuple = tuple[_T, _T]
-_ArrayLike = _FiniteNestedSequence[_SupportsArray[dtype[_SCT]]]
-_DTypeLike = Union[
-    dtype[_SCT],
-    type[_SCT],
-    _SupportsDType[dtype[_SCT]],
-]
 
 class _TrimZerosSequence(Protocol[_T_co]):
     def __len__(self) -> int: ...
@@ -119,6 +110,7 @@ def average(
     axis: None = ...,
     weights: None | _ArrayLikeFloat_co= ...,
     returned: L[False] = ...,
+    keepdims: L[False] = ...,
 ) -> floating[Any]: ...
 @overload
 def average(
@@ -126,6 +118,7 @@ def average(
     axis: None = ...,
     weights: None | _ArrayLikeComplex_co = ...,
     returned: L[False] = ...,
+    keepdims: L[False] = ...,
 ) -> complexfloating[Any, Any]: ...
 @overload
 def average(
@@ -133,6 +126,7 @@ def average(
     axis: None = ...,
     weights: None | Any = ...,
     returned: L[False] = ...,
+    keepdims: L[False] = ...,
 ) -> Any: ...
 @overload
 def average(
@@ -140,6 +134,7 @@ def average(
     axis: None = ...,
     weights: None | _ArrayLikeFloat_co= ...,
     returned: L[True] = ...,
+    keepdims: L[False] = ...,
 ) -> _2Tuple[floating[Any]]: ...
 @overload
 def average(
@@ -147,6 +142,7 @@ def average(
     axis: None = ...,
     weights: None | _ArrayLikeComplex_co = ...,
     returned: L[True] = ...,
+    keepdims: L[False] = ...,
 ) -> _2Tuple[complexfloating[Any, Any]]: ...
 @overload
 def average(
@@ -154,6 +150,7 @@ def average(
     axis: None = ...,
     weights: None | Any = ...,
     returned: L[True] = ...,
+    keepdims: L[False] = ...,
 ) -> _2Tuple[Any]: ...
 @overload
 def average(
@@ -161,6 +158,7 @@ def average(
     axis: None | _ShapeLike = ...,
     weights: None | Any = ...,
     returned: L[False] = ...,
+    keepdims: bool = ...,
 ) -> Any: ...
 @overload
 def average(
@@ -168,6 +166,7 @@ def average(
     axis: None | _ShapeLike = ...,
     weights: None | Any = ...,
     returned: L[True] = ...,
+    keepdims: bool = ...,
 ) -> _2Tuple[Any]: ...
 
 @overload
@@ -195,6 +194,8 @@ def asarray_chkfinite(
     order: _OrderKACF = ...,
 ) -> NDArray[Any]: ...
 
+# TODO: Use PEP 612 `ParamSpec` once mypy supports `Concatenate`
+# xref python/mypy#8645
 @overload
 def piecewise(
     x: _ArrayLike[_SCT],
