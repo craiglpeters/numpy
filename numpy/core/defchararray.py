@@ -446,6 +446,14 @@ def center(a, width, fillchar=' '):
     --------
     str.center
 
+    Examples
+    --------
+    titles = np.array(['Kobzar', 'Stolen Happiness', 'The Forest Song'])
+    np.char.center(titles, 35)
+    array(['            Kobzar           ',
+           '              Stolen Happiness             ',
+           '             The Forest Song             '], dtype='<U35')
+
     """
     a_arr = numpy.asarray(a)
     width_arr = numpy.asarray(width)
