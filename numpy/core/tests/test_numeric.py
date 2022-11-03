@@ -347,7 +347,7 @@ class TestBoolScalar:
 
 
 class TestBoolArray:
-    def setup(self):
+    def setup_method(self):
         # offset for simd tests
         self.t = np.array([True] * 41, dtype=bool)[1::]
         self.f = np.array([False] * 41, dtype=bool)[1::]
@@ -434,7 +434,7 @@ class TestBoolArray:
 
 
 class TestBoolCmp:
-    def setup(self):
+    def setup_method(self):
         self.f = np.ones(256, dtype=np.float32)
         self.ef = np.ones(self.f.size, dtype=bool)
         self.d = np.ones(128, dtype=np.float64)
@@ -1813,7 +1813,7 @@ def assert_array_strict_equal(x, y):
 
 
 class TestClip:
-    def setup(self):
+    def setup_method(self):
         self.nr = 5
         self.nc = 3
 
@@ -2442,10 +2442,10 @@ class TestAllclose:
     rtol = 1e-5
     atol = 1e-8
 
-    def setup(self):
+    def setup_method(self):
         self.olderr = np.seterr(invalid='ignore')
 
-    def teardown(self):
+    def teardown_method(self):
         np.seterr(**self.olderr)
 
     def tst_allclose(self, x, y):
@@ -2527,7 +2527,7 @@ class TestIsclose:
     rtol = 1e-5
     atol = 1e-8
 
-    def setup(self):
+    def _setup(self):
         atol = self.atol
         rtol = self.rtol
         arr = np.array([100, 1000])
@@ -2573,7 +2573,7 @@ class TestIsclose:
                 ]
 
     def test_ip_isclose(self):
-        self.setup()
+        self._setup()
         tests = self.some_close_tests
         results = self.some_close_results
         for (x, y), result in zip(tests, results):
@@ -2595,17 +2595,17 @@ class TestIsclose:
             assert_array_equal(np.isclose(x, y).all(), np.allclose(x, y), msg % (x, y))
 
     def test_ip_all_isclose(self):
-        self.setup()
+        self._setup()
         for (x, y) in self.all_close_tests:
             self.tst_all_isclose(x, y)
 
     def test_ip_none_isclose(self):
-        self.setup()
+        self._setup()
         for (x, y) in self.none_close_tests:
             self.tst_none_isclose(x, y)
 
     def test_ip_isclose_allclose(self):
-        self.setup()
+        self._setup()
         tests = (self.all_close_tests + self.none_close_tests +
                  self.some_close_tests)
         for (x, y) in tests:
@@ -2671,7 +2671,7 @@ class TestIsclose:
 
 
 class TestStdVar:
-    def setup(self):
+    def setup_method(self):
         self.A = np.array([1, -1, 1, -1])
         self.real_var = 1
 
@@ -2724,7 +2724,7 @@ class TestStdVarComplex:
 class TestCreationFuncs:
     # Test ones, zeros, empty and full.
 
-    def setup(self):
+    def setup_method(self):
         dtypes = {np.dtype(tp) for tp in itertools.chain(*np.sctypes.values())}
         # void, bytes, str
         variable_sized = {tp for tp in dtypes if tp.str.endswith('0')}
@@ -2795,7 +2795,7 @@ class TestCreationFuncs:
 class TestLikeFuncs:
     '''Test ones_like, zeros_like, empty_like and full_like'''
 
-    def setup(self):
+    def setup_method(self):
         self.data = [
                 # Array scalars
                 (np.array(3.), None),
@@ -2824,12 +2824,11 @@ class TestLikeFuncs:
     def compare_array_value(self, dz, value, fill_value):
         if value is not None:
             if fill_value:
-                try:
-                    z = dz.dtype.type(value)
-                except OverflowError:
-                    pass
-                else:
-                    assert_(np.all(dz == z))
+                # Conversion is close to what np.full_like uses
+                # but we  may want to convert directly in the future
+                # which may result in errors (where this does not).
+                z = np.array(value).astype(dz.dtype)
+                assert_(np.all(dz == z))
             else:
                 assert_(np.all(dz == value))
 
@@ -3382,6 +3381,14 @@ class TestCross:
         u = np.ones((3, 4, 2))
         for axisc in range(-2, 2):
             assert_equal(np.cross(u, u, axisc=axisc).shape, (3, 4))
+
+    def test_uint8_int32_mixed_dtypes(self):
+        # regression test for gh-19138
+        u = np.array([[195, 8, 9]], np.uint8)
+        v = np.array([250, 166, 68], np.int32)
+        z = np.array([[950, 11010, -30370]], dtype=np.int32)
+        assert_equal(np.cross(v, u), z)
+        assert_equal(np.cross(u, v), -z)
 
 
 def test_outer_out_param():

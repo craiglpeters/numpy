@@ -442,7 +442,8 @@ class TestConversion:
 
     def test_iinfo_long_values(self):
         for code in 'bBhH':
-            res = np.array(np.iinfo(code).max + 1, dtype=code)
+            with pytest.warns(DeprecationWarning):
+                res = np.array(np.iinfo(code).max + 1, dtype=code)
             tgt = np.iinfo(code).min
             assert_(res == tgt)
 
@@ -767,7 +768,7 @@ class TestBitShifts:
         nbits = dt.itemsize * 8
         for val in [5, -5]:
             for shift in [nbits, nbits + 4]:
-                val_scl = dt.type(val)
+                val_scl = np.array(val).astype(dt)[()]
                 shift_scl = dt.type(shift)
                 res_scl = op(val_scl, shift_scl)
                 if val_scl < 0 and op is operator.rshift:
@@ -777,7 +778,7 @@ class TestBitShifts:
                     assert_equal(res_scl, 0)
 
                 # Result on scalars should be the same as on arrays
-                val_arr = np.array([val]*32, dtype=dt)
+                val_arr = np.array([val_scl]*32, dtype=dt)
                 shift_arr = np.array([shift]*32, dtype=dt)
                 res_arr = op(val_arr, shift_arr)
                 assert_equal(res_arr, res_scl)
@@ -804,7 +805,7 @@ class TestHash:
             assert hash(val) == hash(numpy_val)
 
         if hash(float(np.nan)) != hash(float(np.nan)):
-            # If Python distinguises different NaNs we do so too (gh-18833)
+            # If Python distinguishes different NaNs we do so too (gh-18833)
             assert hash(scalar(np.nan)) != hash(scalar(np.nan))
 
     @pytest.mark.parametrize("type_code", np.typecodes['Complex'])
@@ -902,8 +903,7 @@ def test_scalar_integer_operation_overflow(dtype, operation):
 @pytest.mark.parametrize("operation", [
         lambda min, neg_1: -min,
         lambda min, neg_1: abs(min),
-        pytest.param(lambda min, neg_1: min * neg_1,
-            marks=pytest.mark.xfail(reason="broken on some platforms")),
+        lambda min, neg_1: min * neg_1,
         pytest.param(lambda min, neg_1: min // neg_1,
             marks=pytest.mark.skip(reason="broken on some platforms"))],
         ids=["neg", "abs", "*", "//"])
@@ -923,6 +923,8 @@ def test_scalar_unsigned_integer_overflow(dtype):
     with pytest.warns(RuntimeWarning, match="overflow encountered"):
         -val
 
+    zero = np.dtype(dtype).type(0)
+    -zero  # does not warn
 
 @pytest.mark.parametrize("dtype", np.typecodes["AllInteger"])
 @pytest.mark.parametrize("operation", [
@@ -1003,6 +1005,7 @@ def test_longdouble_complex():
 
 @pytest.mark.parametrize(["__op__", "__rop__", "op", "cmp"], ops_with_names)
 @pytest.mark.parametrize("subtype", [float, int, complex, np.float16])
+@np._no_nep50_warning()
 def test_pyscalar_subclasses(subtype, __op__, __rop__, op, cmp):
     def op_func(self, other):
         return __op__

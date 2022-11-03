@@ -334,7 +334,7 @@ class TestUfunc:
 
     def test_signature3(self):
         enabled, num_dims, ixs, flags, sizes = umt.test_signature(
-            2, 1, u"(i1, i12),   (J_1)->(i12, i2)")
+            2, 1, "(i1, i12),   (J_1)->(i12, i2)")
         assert_equal(enabled, 1)
         assert_equal(num_dims, (2, 1, 2))
         assert_equal(ixs, (0, 1, 2, 1, 3))
@@ -491,6 +491,15 @@ class TestUfunc:
             np.ldexp(1., np.uint64(3), dtype="d")
         with pytest.raises(TypeError):
             np.ldexp(1., np.uint64(3), signature=(None, None, "d"))
+
+    def test_partial_signature_mismatch_with_cache(self):
+        with pytest.raises(TypeError):
+            np.add(np.float16(1), np.uint64(2), sig=("e", "d", None))
+        # Ensure e,d->None is in the dispatching cache (double loop)
+        np.add(np.float16(1), np.float64(2))
+        # The error must still be raised:
+        with pytest.raises(TypeError):
+            np.add(np.float16(1), np.uint64(2), sig=("e", "d", None))
 
     def test_use_output_signature_for_all_arguments(self):
         # Test that providing only `dtype=` or `signature=(None, None, dtype)`
@@ -2402,6 +2411,7 @@ def test_ufunc_types(ufunc):
 
 @pytest.mark.parametrize('ufunc', [getattr(np, x) for x in dir(np)
                                 if isinstance(getattr(np, x), np.ufunc)])
+@np._no_nep50_warning()
 def test_ufunc_noncontiguous(ufunc):
     '''
     Check that contiguous and non-contiguous calls to ufuncs

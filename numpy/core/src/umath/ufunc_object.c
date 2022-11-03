@@ -49,6 +49,8 @@
 #include "override.h"
 #include "npy_import.h"
 #include "extobj.h"
+
+#include "arrayobject.h"
 #include "common.h"
 #include "dtypemeta.h"
 #include "numpyos.h"
@@ -945,6 +947,7 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
         ufunc_full_args full_args, PyArrayObject *out_op[],
         PyArray_DTypeMeta *out_op_DTypes[],
         npy_bool *force_legacy_promotion, npy_bool *allow_legacy_promotion,
+        npy_bool *promoting_pyscalars,
         PyObject *order_obj, NPY_ORDER *out_order,
         PyObject *casting_obj, NPY_CASTING *out_casting,
         PyObject *subok_obj, npy_bool *out_subok,
@@ -961,6 +964,7 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
     npy_bool any_scalar = NPY_FALSE;
     *allow_legacy_promotion = NPY_TRUE;
     *force_legacy_promotion = NPY_FALSE;
+    *promoting_pyscalars = NPY_FALSE;
     for (int i = 0; i < nin; i++) {
         obj = PyTuple_GET_ITEM(full_args.in, i);
 
@@ -980,6 +984,8 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
 
         if (!NPY_DT_is_legacy(out_op_DTypes[i])) {
             *allow_legacy_promotion = NPY_FALSE;
+            // TODO: A subclass of int, float, complex could reach here and
+            //       it should not be flagged as "weak" if it does.
         }
         if (PyArray_NDIM(out_op[i]) == 0) {
             any_scalar = NPY_TRUE;
@@ -988,17 +994,24 @@ convert_ufunc_arguments(PyUFuncObject *ufunc,
             all_scalar = NPY_FALSE;
             continue;
         }
+
+        // TODO: Is this equivalent/better by removing the logic which enforces
+        //       that we always use weak promotion in the core?
+        if (npy_promotion_state == NPY_USE_LEGACY_PROMOTION) {
+            continue;  /* Skip use of special dtypes */
+        }
+
         /*
-         * TODO: we need to special case scalars here, if the input is a
-         *       Python int, float, or complex, we have to use the "weak"
-         *       DTypes: `PyArray_PyIntAbstractDType`, etc.
-         *       This is to allow e.g. `float32(1.) + 1` to return `float32`.
-         *       The correct array dtype can only be found after promotion for
-         *       such a "weak scalar".  We could avoid conversion here, but
-         *       must convert it for use in the legacy promotion.
-         *       There is still a small chance that this logic can instead
-         *       happen inside the Python operators.
+         * Handle the "weak" Python scalars/literals.  We use a special DType
+         * for these.
+         * Further, we mark the operation array with a special flag to indicate
+         * this.  This is because the legacy dtype resolution makes use of
+         * `np.can_cast(operand, dtype)`.  The flag is local to this use, but
+         * necessary to propagate the information to the legacy type resolution.
          */
+        if (npy_mark_tmp_array_if_pyscalar(obj, out_op[i], &out_op_DTypes[i])) {
+            *promoting_pyscalars = NPY_TRUE;
+        }
     }
     if (*allow_legacy_promotion && (!all_scalar && any_scalar)) {
         *force_legacy_promotion = should_use_min_scalar(nin, out_op, 0, NULL);
@@ -2768,7 +2781,8 @@ reducelike_promote_and_resolve(PyUFuncObject *ufunc,
     }
 
     PyArrayMethodObject *ufuncimpl = promote_and_get_ufuncimpl(ufunc,
-            ops, signature, operation_DTypes, NPY_FALSE, NPY_TRUE, NPY_TRUE);
+            ops, signature, operation_DTypes, NPY_FALSE, NPY_TRUE,
+            NPY_FALSE, NPY_TRUE);
     if (evil_ndim_mutating_hack) {
         ((PyArrayObject_fields *)out)->nd = 0;
     }
@@ -2944,6 +2958,7 @@ PyUFunc_Reduce(PyUFuncObject *ufunc,
     int iaxes, ndim;
     npy_bool reorderable;
     npy_bool axis_flags[NPY_MAXDIMS];
+    PyArrayObject *result = NULL;
     PyObject *identity;
     const char *ufunc_name = ufunc_get_name_cstr(ufunc);
     /* These parameters come from a TLS global */
@@ -2969,11 +2984,21 @@ PyUFunc_Reduce(PyUFuncObject *ufunc,
         return NULL;
     }
 
+    /*
+     * Promote and fetch ufuncimpl (currently needed to fix up the identity).
+     */
+    PyArray_Descr *descrs[3];
+    PyArrayMethodObject *ufuncimpl = reducelike_promote_and_resolve(ufunc,
+            arr, out, signature, NPY_FALSE, descrs, "reduce");
+    if (ufuncimpl == NULL) {
+        return NULL;
+    }
+
     /* Get the identity */
     /* TODO: Both of these should be provided by the ArrayMethod! */
     identity = _get_identity(ufunc, &reorderable);
     if (identity == NULL) {
-        return NULL;
+        goto finish;
     }
 
     /* Get the initial value */
@@ -2989,17 +3014,25 @@ PyUFunc_Reduce(PyUFuncObject *ufunc,
             initial = Py_None;
             Py_INCREF(initial);
         }
+        else if (PyTypeNum_ISUNSIGNED(descrs[2]->type_num)
+                    && PyLong_CheckExact(initial)) {
+            /*
+             * This is a bit of a hack until we have truly loop specific
+             * identities.  Python -1 cannot be cast to unsigned so convert
+             * it to a NumPy scalar, but we use -1 for bitwise functions to
+             * signal all 1s.
+             * (A builtin identity would not overflow here, although we may
+             * unnecessary convert 0 and 1.)
+             */
+            Py_SETREF(initial, PyObject_CallFunctionObjArgs(
+                        (PyObject *)&PyLongArrType_Type, initial, NULL));
+            if (initial == NULL) {
+                goto finish;
+            }
+        }
     } else {
         Py_DECREF(identity);
         Py_INCREF(initial);  /* match the reference count in the if above */
-    }
-
-    PyArray_Descr *descrs[3];
-    PyArrayMethodObject *ufuncimpl = reducelike_promote_and_resolve(ufunc,
-            arr, out, signature, NPY_FALSE, descrs, "reduce");
-    if (ufuncimpl == NULL) {
-        Py_DECREF(initial);
-        return NULL;
     }
 
     PyArrayMethod_Context context = {
@@ -3008,14 +3041,15 @@ PyUFunc_Reduce(PyUFuncObject *ufunc,
         .descriptors = descrs,
     };
 
-    PyArrayObject *result = PyUFunc_ReduceWrapper(&context,
+    result = PyUFunc_ReduceWrapper(&context,
             arr, out, wheremask, axis_flags, reorderable, keepdims,
             initial, reduce_loop, ufunc, buffersize, ufunc_name, errormask);
 
+  finish:
     for (int i = 0; i < 3; i++) {
         Py_DECREF(descrs[i]);
     }
-    Py_DECREF(initial);
+    Py_XDECREF(initial);
     return result;
 }
 
@@ -4875,10 +4909,13 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
     int keepdims = -1;  /* We need to know if it was passed */
     npy_bool force_legacy_promotion;
     npy_bool allow_legacy_promotion;
+    npy_bool promoting_pyscalars;
     if (convert_ufunc_arguments(ufunc,
             /* extract operand related information: */
             full_args, operands,
-            operand_DTypes, &force_legacy_promotion, &allow_legacy_promotion,
+            operand_DTypes,
+            &force_legacy_promotion, &allow_legacy_promotion,
+            &promoting_pyscalars,
             /* extract general information: */
             order_obj, &order,
             casting_obj, &casting,
@@ -4899,7 +4936,7 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
     PyArrayMethodObject *ufuncimpl = promote_and_get_ufuncimpl(ufunc,
             operands, signature,
             operand_DTypes, force_legacy_promotion, allow_legacy_promotion,
-            NPY_FALSE);
+            promoting_pyscalars, NPY_FALSE);
     if (ufuncimpl == NULL) {
         goto fail;
     }
@@ -4908,6 +4945,41 @@ ufunc_generic_fastcall(PyUFuncObject *ufunc,
     if (resolve_descriptors(nop, ufunc, ufuncimpl,
             operands, operation_descrs, signature, casting) < 0) {
         goto fail;
+    }
+
+    if (promoting_pyscalars) {
+        /*
+         * Python integers need to be cast specially.  For other python
+         * scalars it does not hurt either.  It would be nice to never create
+         * the array in this case, but that is difficult until value-based
+         * promotion rules are gone.  (After that, we may get away with using
+         * dummy arrays rather than real arrays for the legacy resolvers.)
+         */
+        for (int i = 0; i < nin; i++) {
+            int orig_flags = PyArray_FLAGS(operands[i]);
+            if (!(orig_flags & NPY_ARRAY_WAS_PYTHON_LITERAL)) {
+                continue;
+            }
+            /* If the descriptor matches, no need to worry about conversion */
+            if (PyArray_EquivTypes(
+                    PyArray_DESCR(operands[i]), operation_descrs[i])) {
+                continue;
+            }
+            /* Otherwise, replace the operand with a new array */
+            PyArray_Descr *descr = operation_descrs[i];
+            Py_INCREF(descr);
+            PyArrayObject *new = (PyArrayObject *)PyArray_NewFromDescr(
+                    &PyArray_Type, descr, 0, NULL, NULL, NULL, 0, NULL);
+            Py_SETREF(operands[i], new);
+            if (operands[i] == NULL) {
+                goto fail;
+            }
+
+            PyObject *value = PyTuple_GET_ITEM(full_args.in, i);
+            if (PyArray_SETITEM(new, PyArray_BYTES(operands[i]), value) < 0) {
+                goto fail;
+            }
+        }
     }
 
     if (subok) {
@@ -6032,7 +6104,8 @@ ufunc_at(PyUFuncObject *ufunc, PyObject *args)
 
     PyArrayMethodObject *ufuncimpl = promote_and_get_ufuncimpl(ufunc,
             operands, signature, operand_DTypes,
-            force_legacy_promotion, allow_legacy_promotion, NPY_FALSE);
+            force_legacy_promotion, allow_legacy_promotion,
+            NPY_FALSE, NPY_FALSE);
     if (ufuncimpl == NULL) {
         goto fail;
     }

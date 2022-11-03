@@ -152,7 +152,7 @@ and its sub-types).
 
 .. c:function:: int PyArray_FinalizeFunc(PyArrayObject* arr, PyObject* obj)
 
-    The function pointed to by the CObject
+    The function pointed to by the :c:type:`PyCapsule`
     :obj:`~numpy.class.__array_finalize__`.
     The first argument is the newly created sub-type. The second argument
     (if not NULL) is the "parent" array (if the array was created using
@@ -1322,6 +1322,29 @@ User-defined data types
 
 Special functions for NPY_OBJECT
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. warning::
+
+    When working with arrays or buffers filled with objects NumPy tries to
+    ensure such buffers are filled with ``None`` before any data may be read.
+    However, code paths may existed where an array is only initialized to
+    ``NULL``.
+    NumPy itself accepts ``NULL`` as an alias for ``None``, but may ``assert``
+    non-``NULL`` when compiled in debug mode.
+
+    Because NumPy is not yet consistent about initialization with None,
+    users **must** expect a value of ``NULL`` when working with buffers created
+    by NumPy.  Users **should** also ensure to pass fully initialized buffers
+    to NumPy, since NumPy may make this a strong requirement in the future.
+
+    There is currently an intention to ensure that NumPy always initializes
+    object arrays before they may be read.  Any failure to do so will be
+    regarded as a bug.
+    In the future, users may be able to rely on non-NULL values when reading
+    from any array, although exceptions for writing to freshly created arrays
+    may remain (e.g. for output arrays in ufunc code).  As of NumPy 1.23
+    known code paths exists where proper filling is not done.
+
 
 .. c:function:: int PyArray_INCREF(PyArrayObject* op)
 
@@ -3024,14 +3047,14 @@ to.
     structure with base, ptr, len, and flags members. The
     :c:type:`PyArray_Chunk` structure is binary compatible with the
     Python's buffer object (through its len member on 32-bit platforms
-    and its ptr member on 64-bit platforms or in Python 2.5). On
-    return, the base member is set to *obj* (or its base if *obj* is
-    already a buffer object pointing to another object). If you need
-    to hold on to the memory be sure to INCREF the base member. The
-    chunk of memory is pointed to by *buf* ->ptr member and has length
-    *buf* ->len. The flags member of *buf* is :c:data:`NPY_ARRAY_ALIGNED`
-    with the :c:data:`NPY_ARRAY_WRITEABLE` flag set if *obj* has
-    a writeable buffer interface.
+    and its ptr member on 64-bit platforms). On return, the base member
+    is set to *obj* (or its base if *obj* is already a buffer object
+    pointing to another object). If you need to hold on to the memory
+    be sure to INCREF the base member. The chunk of memory is pointed
+    to by *buf* ->ptr member and has length *buf* ->len. The flags
+    member of *buf* is :c:data:`NPY_ARRAY_ALIGNED` with the
+    :c:data:`NPY_ARRAY_WRITEABLE` flag set if *obj* has a writeable
+    buffer interface.
 
 .. c:function:: int PyArray_AxisConverter(PyObject* obj, int* axis)
 

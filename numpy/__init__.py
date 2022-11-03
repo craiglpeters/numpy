@@ -85,10 +85,11 @@ __version__
 
 Viewing documentation using IPython
 -----------------------------------
-Start IPython with the NumPy profile (``ipython -p numpy``), which will
-import `numpy` under the alias ``np``.  Then, use the ``cpaste`` command to
-paste examples into the shell.  To see which functions are available in
-`numpy`, type ``np.<TAB>`` (where ``<TAB>`` refers to the TAB key), or use
+
+Start IPython and import `numpy` usually under the alias ``np``: `import
+numpy as np`.  Then, directly past or use the ``%cpaste`` magic to paste
+examples into the shell.  To see which functions are available in `numpy`,
+type ``np.<TAB>`` (where ``<TAB>`` refers to the TAB key), or use
 ``np.*cos*?<ENTER>`` (where ``<ENTER>`` refers to the ENTER key) to narrow
 down the list.  To view the docstring for a function, use
 ``np.cos?<ENTER>`` (to view the docstring) and ``np.cos??<ENTER>`` (to view
@@ -200,10 +201,9 @@ else:
 
     _msg = (
         "`np.{n}` is a deprecated alias for `np.compat.{n}`. "
-        "To silence this warning, use `np.compat.{n}` by itself. "
-        "In the likely event your code does not need to work on Python 2 "
-        "you can use the builtin `{n2}` for which `np.compat.{n}` is itself "
-        "an alias. Doing this will not modify any behaviour and is safe. "
+        "To silence this warning, use `np.compat.{n}` by itself, or "
+        "the builtin `{n2}` for which `np.compat.{n}` is itself an "
+        "alias. Doing this will not modify any behaviour and is safe. "
         "{extended_msg}\n"
         "Deprecated in NumPy 1.20; for more details and guidance: "
         "https://numpy.org/devdocs/release/1.20.0-notes.html#deprecations")
@@ -337,7 +337,7 @@ else:
         """
         try:
             x = ones(2, dtype=float32)
-            if not abs(x.dot(x) - 2.0) < 1e-5:
+            if not abs(x.dot(x) - float32(2.0)) < 1e-5:
                 raise AssertionError()
         except AssertionError:
             msg = ("The current Numpy installation ({!r}) fails to "
@@ -412,6 +412,8 @@ else:
     # We do this from python, since the C-module may not be reloaded and
     # it is tidier organized.
     core.multiarray._multiarray_umath._reload_guard()
+
+    core._set_promotion_state(os.environ.get("NPY_PROMOTION_STATE", "legacy"))
 
     # Tell PyInstaller where to find hook-numpy.py
     def _pyinstaller_hooks_dir():
