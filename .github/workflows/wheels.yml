@@ -104,21 +104,20 @@ jobs:
           fetch-depth: 0
 
       # Used to push the built wheels
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.x"
 
-      - name: Configure mingw for 32-bit builds
+      - name: setup rtools for 32-bit
         run: |
-          # Force 32-bit mingw
-          choco uninstall mingw
-          choco install -y mingw --forcex86 --force --version=7.3.0
-          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw32\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          refreshenv
-        if: ${{ env.IS_32_BIT == 'true' }}
+          echo "PLAT=i686" >> $env:GITHUB_ENV
+          echo "MSYSTEM=MINGW32" >> $env:GITHUB_ENV
+          echo "PATH=$env:RTOOLS40_HOME\mingw32\bin;$env:PATH" >> $env:GITHUB_ENV
+          gfortran --version
+        if: ${{ matrix.buildplat[1] == 'win32' }}
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.9.0
+        uses: pypa/cibuildwheel@v2.11.2
         env:
           CIBW_BUILD: ${{ matrix.python }}-${{ matrix.buildplat[1] }}
 
@@ -169,7 +168,7 @@ jobs:
           # https://github.com/actions/checkout/issues/338
           fetch-depth: 0
       # Used to push the built wheels
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           # Build sdist on lowest supported Python
           python-version: "3.8"
